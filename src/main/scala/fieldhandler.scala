@@ -1,6 +1,7 @@
 package protoacc
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import chisel3.{Printable}
 import freechips.rocketchip.tile._
 import org.chipsalliance.cde.config._
@@ -33,12 +34,12 @@ class FieldHandler()(implicit p: Parameters) extends Module {
   val completed_toplevel_bufs_reg = RegInit(0.U(64.W))
   io.completed_toplevel_bufs := completed_toplevel_bufs_reg
 
-  val just_completed_buffer = RegInit(Bool(false))
+  val just_completed_buffer = RegInit(false.B)
   val last_consumer_transaction = (io.consumer.available_output_bytes === io.consumer.user_consumed_bytes) && io.consumer.output_last_chunk
 
   when (io.consumer.output_ready && io.consumer.output_valid) {
     when (last_consumer_transaction) {
-      just_completed_buffer := Bool(true)
+      just_completed_buffer := true.B
       val next_completed_toplevel_bufs_reg = completed_toplevel_bufs_reg + 1.U
       completed_toplevel_bufs_reg := next_completed_toplevel_bufs_reg
       ProtoaccLogger.logInfo("completed bufs: current 0x%x, next 0x%x\n",
@@ -55,8 +56,8 @@ class FieldHandler()(implicit p: Parameters) extends Module {
   val out_addr_stack = Reg(Vec(ProtoaccParams.MAX_NESTED_LEVELS, UInt(64.W)))
   val hasbits_offset_stack = Reg(Vec(ProtoaccParams.MAX_NESTED_LEVELS, UInt(64.W)))
   val descr_table_stack = Reg(Vec(ProtoaccParams.MAX_NESTED_LEVELS, UInt(64.W)))
-  val lens_table_stack = RegInit(Vec(Seq.fill(ProtoaccParams.MAX_NESTED_LEVELS)(0.U(64.W))))
-  val min_field_no_stack = RegInit(Vec(Seq.fill(ProtoaccParams.MAX_NESTED_LEVELS)(0.U(32.W))))
+  val lens_table_stack = RegInit(VecInit(Seq.fill(ProtoaccParams.MAX_NESTED_LEVELS)(0.U(64.W))))
+  val min_field_no_stack = RegInit(VecInit(Seq.fill(ProtoaccParams.MAX_NESTED_LEVELS)(0.U(32.W))))
 
 
   val default_hasbits_val = (0x10).U(64.W)
@@ -135,30 +136,30 @@ class FieldHandler()(implicit p: Parameters) extends Module {
   val descriptor_responseReg = Reg(new DescriptorResponse)
   val descriptor_responseReg_extra = Reg(new DescriptorResponseExtra)
 
-  io.consumer.user_consumed_bytes := UInt(0)
-  io.consumer.output_ready := Bool(false)
+  io.consumer.user_consumed_bytes := 0.U
+  io.consumer.output_ready := false.B
 
-  val field_no_reg = RegInit(UInt(0, 32.W))
+  val field_no_reg = RegInit(0.U(32.W))
 
   val descriptor_table_handler = Module(new DescriptorTableHandler)
 
-  descriptor_table_handler.io.extra_meta_response.ready := Bool(false)
+  descriptor_table_handler.io.extra_meta_response.ready := false.B
 
   io.l1helperUser <> descriptor_table_handler.io.l1helperUser
 
-  val wire_type = varintresult & UInt(0x7)
+  val wire_type = varintresult & (0x7).U
   val field_no = varintresult >> 3
 
   descriptor_table_handler.io.field_dest_request.bits.proto_addr := output_address_user
   descriptor_table_handler.io.field_dest_request.bits.relative_field_no := field_no - current_min_field_no
   descriptor_table_handler.io.field_dest_request.bits.base_info_ptr := descriptor_table_address_user
-  descriptor_table_handler.io.field_dest_request.valid := Bool(false)
-  descriptor_table_handler.io.field_dest_response.ready := Bool(false)
+  descriptor_table_handler.io.field_dest_request.valid := false.B
+  descriptor_table_handler.io.field_dest_response.ready := false.B
 
   io.fixed_writer_request.bits.write_addr := descriptor_responseReg.write_addr
 
-  io.fixed_writer_request.bits.write_width := UInt(0)
-  io.fixed_writer_request.bits.write_data := UInt(0)
+  io.fixed_writer_request.bits.write_width := 0.U
+  io.fixed_writer_request.bits.write_data := 0.U
 
   val type_info =   descriptor_responseReg.proto_field_type
   val is_repeated = descriptor_responseReg.is_repeated
@@ -168,7 +169,7 @@ class FieldHandler()(implicit p: Parameters) extends Module {
   val type_need_zigzag64 = (type_info === PROTO_TYPES.TYPE_SINT64)
   val type_need_zigzag32 = (type_info === PROTO_TYPES.TYPE_SINT32)
 
-  io.fixed_writer_request.valid := Bool(false)
+  io.fixed_writer_request.valid := false.B
 
 
   val varint_zigzag32_result = (varintresult(31, 0) >> 1) ^ ((~(varintresult(31, 0) & 1.U)) + 1.U)
@@ -178,39 +179,39 @@ class FieldHandler()(implicit p: Parameters) extends Module {
   when (io.fixed_alloc_region_addr.valid) {
     fixed_alloc_region_next := io.fixed_alloc_region_addr.bits
   }
-  assert((fixed_alloc_region_next & UInt(0x7)) === UInt(0), "Fixed alloc region ptr must be 8-byte aligned\n")
+  assert((fixed_alloc_region_next & (0x7).U) === 0.U, "Fixed alloc region ptr must be 8-byte aligned\n")
 
   val array_alloc_region_next = RegInit(0.U(64.W))
   when (io.array_alloc_region_addr.valid) {
     array_alloc_region_next := io.array_alloc_region_addr.bits
   }
-  assert((array_alloc_region_next & UInt(0x7)) === UInt(0), "Array alloc region ptr must be 8-byte aligned\n")
+  assert((array_alloc_region_next & (0x7).U) === 0.U, "Array alloc region ptr must be 8-byte aligned\n")
 
 
 
 
-  val sStringWait = UInt(0)
-  val sStringReadLength = UInt(1)
-  val sStringWriteHeader0 = UInt(2)
-  val sStringWriteHeader1 = UInt(3)
-  val sStringMoveData = UInt(4)
-  val sStringDone = UInt(5)
+  val sStringWait = 0.U
+  val sStringReadLength = 1.U
+  val sStringWriteHeader0 = 2.U
+  val sStringWriteHeader1 = 3.U
+  val sStringMoveData = 4.U
+  val sStringDone = 5.U
   val stringFieldState = RegInit(sStringWait)
 
-  val sPackedRepeatedWait = UInt(0)
-  val sPackedRepeatedReadByteLength = UInt(1)
-  val sPackedRepeatedMoveData = UInt(2)
-  val sPackedRepeatedWriteHeader = UInt(3)
+  val sPackedRepeatedWait = 0.U
+  val sPackedRepeatedReadByteLength = 1.U
+  val sPackedRepeatedMoveData = 2.U
+  val sPackedRepeatedWriteHeader = 3.U
   val packedRepeatedFieldState = RegInit(sPackedRepeatedWait)
 
-  val sNestedMessageWait = UInt(0)
-  val sGetDescrTableAddr = UInt(1)
-  val sLoadVPtr = UInt(2)
-  val sObjLenStackManagement = UInt(3)
+  val sNestedMessageWait = 0.U
+  val sGetDescrTableAddr = 1.U
+  val sLoadVPtr = 2.U
+  val sObjLenStackManagement = 3.U
   val switchNestedMessageSetupState = RegInit(sNestedMessageWait)
 
 
-  val urc_valid = RegInit(Bool(false))
+  val urc_valid = RegInit(false.B)
 
   val urc_ptr_to_repeated_field = RegInit(0.U(64.W))
   val urc_is_repeated_ptr_field = RegInit(0.B)
@@ -248,22 +249,22 @@ class FieldHandler()(implicit p: Parameters) extends Module {
       hasbitswriter.io.requestin.bits.relative_fieldno := field_no - current_min_field_no
       hasbitswriter.io.requestin.bits.flushonly := false.B
 
-      when (fire_sReadKey.fire()) {
+      when (fire_sReadKey.fire) {
         ProtoaccLogger.logInfo("Read Key. fieldno: %d, wire_type: %d\n", field_no, wire_type)
         fieldState := sPrepState
         field_no_reg := field_no
         wireTypeReg := wire_type
-        just_completed_buffer := Bool(false)
+        just_completed_buffer := false.B
       } .elsewhen (just_completed_buffer) {
         hasbitswriter.io.requestin.valid := true.B
         hasbitswriter.io.requestin.bits.flushonly := true.B
         when (hasbitswriter.io.requestin.ready) {
-          just_completed_buffer := Bool(false)
+          just_completed_buffer := false.B
         }
       }
     }
     is (sPrepState) {
-      descriptor_table_handler.io.field_dest_response.ready := Bool(true)
+      descriptor_table_handler.io.field_dest_response.ready := true.B
       when (descriptor_table_handler.io.field_dest_response.valid) {
         val descr_resp_bits = descriptor_table_handler.io.field_dest_response.bits
         descriptor_responseReg := descr_resp_bits
@@ -310,7 +311,7 @@ class FieldHandler()(implicit p: Parameters) extends Module {
           when (urc_is_repeated_ptr_field) {
             when (urc_teardown_stage === 0.U) {
               io.fixed_writer_request.bits.write_data := ((urc_elems_written << 32) | urc_elems_written(31, 0))(63, 0)
-              io.fixed_writer_request.valid := Bool(true)
+              io.fixed_writer_request.valid := true.B
               io.fixed_writer_request.bits.write_addr := urc_ptr_to_inobjsizes
               io.fixed_writer_request.bits.write_width := 3.U
 
@@ -320,27 +321,27 @@ class FieldHandler()(implicit p: Parameters) extends Module {
               }
             } .otherwise {
               io.fixed_writer_request.bits.write_data := urc_elems_written
-              io.fixed_writer_request.valid := Bool(true)
+              io.fixed_writer_request.valid := true.B
               io.fixed_writer_request.bits.write_addr := urc_ptr_to_repobjsizes
               io.fixed_writer_request.bits.write_width := 3.U
 
               when (io.fixed_writer_request.ready) {
                 ProtoaccLogger.logInfo("[unpacked repptrfield] closeout s1\n")
-                urc_valid := Bool(false)
+                urc_valid := false.B
                 array_alloc_region_next := ((urc_next_write_addr + 7.U) >> 3.U) << 3.U
                 urc_teardown_stage := 0.U
               }
             }
           } .otherwise {
             io.fixed_writer_request.bits.write_data := ((urc_elems_written << 32) | urc_elems_written(31, 0))(63, 0)
-            io.fixed_writer_request.valid := Bool(true)
+            io.fixed_writer_request.valid := true.B
             io.fixed_writer_request.bits.write_addr := urc_ptr_to_inobjsizes
             io.fixed_writer_request.bits.write_width := 3.U
 
             when (io.fixed_writer_request.ready) {
               ProtoaccLogger.logInfo("[unpacked repfield] closeout\n")
 
-              urc_valid := Bool(false)
+              urc_valid := false.B
               array_alloc_region_next := ((urc_next_write_addr + 7.U) >> 3.U) << 3.U
             }
           }
@@ -349,14 +350,14 @@ class FieldHandler()(implicit p: Parameters) extends Module {
 
           when (descriptor_responseReg_extra.is_repeated_ptr_field) {
             when (urc_alloc_stage === 0.U) {
-              io.fixed_writer_request.valid := Bool(true)
+              io.fixed_writer_request.valid := true.B
               io.fixed_writer_request.bits.write_addr := descriptor_responseReg_extra.ptr_to_repeated_ptr_field_rep
               io.fixed_writer_request.bits.write_width := 3.U
               io.fixed_writer_request.bits.write_data := array_alloc_region_next
 
               when (io.fixed_writer_request.ready) {
                 urc_next_write_addr := array_alloc_region_next + 8.U
-                urc_valid := Bool(true)
+                urc_valid := true.B
 
                 descriptor_responseReg.write_addr := array_alloc_region_next + 8.U
 
@@ -365,7 +366,7 @@ class FieldHandler()(implicit p: Parameters) extends Module {
                   array_alloc_region_next)
 
                 urc_ptr_to_repeated_field := descriptor_responseReg_extra.ptr_to_repeated_field
-                urc_is_repeated_ptr_field := Bool(true)
+                urc_is_repeated_ptr_field := true.B
                 urc_ptr_to_inobjsizes := descriptor_responseReg_extra.ptr_to_repeated_ptr_field_sizes
                 urc_ptr_to_repobjsizes := array_alloc_region_next
 
@@ -379,7 +380,7 @@ class FieldHandler()(implicit p: Parameters) extends Module {
               }
             }
           } .otherwise {
-            io.fixed_writer_request.valid := Bool(true)
+            io.fixed_writer_request.valid := true.B
             io.fixed_writer_request.bits.write_addr := descriptor_responseReg_extra.ptr_to_repeated_field_elems
             io.fixed_writer_request.bits.write_width := 3.U
             io.fixed_writer_request.bits.write_data := array_alloc_region_next
@@ -388,9 +389,9 @@ class FieldHandler()(implicit p: Parameters) extends Module {
 
               descriptor_responseReg.write_addr := array_alloc_region_next
 
-              urc_valid := Bool(true)
+              urc_valid := true.B
               urc_ptr_to_repeated_field := descriptor_responseReg_extra.ptr_to_repeated_field
-              urc_is_repeated_ptr_field := Bool(false)
+              urc_is_repeated_ptr_field := false.B
               urc_ptr_to_inobjsizes := descriptor_responseReg_extra.ptr_to_repeated_field_sizes
               urc_ptr_to_repobjsizes := 0.U
 
@@ -415,10 +416,10 @@ class FieldHandler()(implicit p: Parameters) extends Module {
       io.fixed_writer_request.valid := io.consumer.output_valid
 
       io.fixed_writer_request.bits.write_width := Mux(type_varint64,
-                                                    UInt(3),
+                                                    3.U,
                                                     Mux(type_bool,
-                                                      UInt(0),
-                                                      UInt(2)))
+                                                      0.U,
+                                                      2.U))
 
       when (type_need_zigzag64) {
         io.fixed_writer_request.bits.write_data := varint_zigzag64_result
@@ -444,9 +445,9 @@ class FieldHandler()(implicit p: Parameters) extends Module {
       }
     }
     is (sHandle64bit) {
-      io.consumer.user_consumed_bytes := UInt(8)
+      io.consumer.user_consumed_bytes := 8.U
       io.consumer.output_ready := io.fixed_writer_request.ready
-      io.fixed_writer_request.bits.write_width := UInt(3)
+      io.fixed_writer_request.bits.write_width := 3.U
 
 
       val result64 = io.consumer.output_data(63, 0)
@@ -473,9 +474,9 @@ class FieldHandler()(implicit p: Parameters) extends Module {
     }
 
     is (sHandle32bit) {
-      io.consumer.user_consumed_bytes := UInt(4)
+      io.consumer.user_consumed_bytes := 4.U
       io.consumer.output_ready := io.fixed_writer_request.ready
-      io.fixed_writer_request.bits.write_width := UInt(2)
+      io.fixed_writer_request.bits.write_width := 2.U
       val result32 = io.consumer.output_data(31, 0)
       io.fixed_writer_request.bits.write_data := result32
       io.fixed_writer_request.valid := io.consumer.output_valid
@@ -519,7 +520,7 @@ class FieldHandler()(implicit p: Parameters) extends Module {
 
           when (nested_message) {
             io.fixed_writer_request.bits.write_data := fixed_alloc_region_next
-            io.fixed_writer_request.bits.write_width := UInt(3)
+            io.fixed_writer_request.bits.write_width := 3.U
             io.consumer.output_ready := io.fixed_writer_request.ready
             io.fixed_writer_request.valid := io.consumer.output_valid
             io.consumer.user_consumed_bytes := varintlen
@@ -545,7 +546,7 @@ class FieldHandler()(implicit p: Parameters) extends Module {
         }
 
         is (sGetDescrTableAddr) {
-          descriptor_table_handler.io.extra_meta_response.ready := Bool(true)
+          descriptor_table_handler.io.extra_meta_response.ready := true.B
           when (descriptor_table_handler.io.extra_meta_response.valid) {
             newobj_descriptor := descriptor_table_handler.io.extra_meta_response.bits.extra_meta0
             switchNestedMessageSetupState := sLoadVPtr
@@ -558,7 +559,7 @@ class FieldHandler()(implicit p: Parameters) extends Module {
           val obtained_vptr = descriptor_table_handler.io.extra_meta_response.bits.extra_meta0
           io.fixed_writer_request.bits.write_addr := newobjwriteaddr
           io.fixed_writer_request.bits.write_data := obtained_vptr
-          io.fixed_writer_request.bits.write_width := UInt(3)
+          io.fixed_writer_request.bits.write_width := 3.U
 
           when (descriptor_table_handler.io.extra_meta_response.valid && io.fixed_writer_request.ready) {
             newobj_vptr := obtained_vptr
@@ -572,7 +573,7 @@ class FieldHandler()(implicit p: Parameters) extends Module {
 
         }
         is (sObjLenStackManagement) {
-          descriptor_table_handler.io.extra_meta_response.ready := Bool(true)
+          descriptor_table_handler.io.extra_meta_response.ready := true.B
           when (descriptor_table_handler.io.extra_meta_response.valid) {
             switchNestedMessageSetupState := sNestedMessageWait
 
@@ -620,7 +621,7 @@ class FieldHandler()(implicit p: Parameters) extends Module {
 
           when (packed_repeated) {
             io.fixed_writer_request.bits.write_data := fixed_alloc_region_next
-            io.fixed_writer_request.bits.write_width := UInt(3)
+            io.fixed_writer_request.bits.write_width := 3.U
             io.consumer.output_ready := io.fixed_writer_request.ready
             io.fixed_writer_request.valid := io.consumer.output_valid
             io.consumer.user_consumed_bytes := varintlen
@@ -660,7 +661,7 @@ class FieldHandler()(implicit p: Parameters) extends Module {
           val consume_4bytes = type_tracker === PROTO_TYPES.TYPE_FLOAT ||
                                type_tracker === PROTO_TYPES.TYPE_FIXED32
 
-          val consume_width = Wire(0.U(4.W))
+          val consume_width = WireInit(0.U(4.W))
           when (consume_varint) {
             io.consumer.user_consumed_bytes := varintlen
             consume_width := varintlen
@@ -671,7 +672,7 @@ class FieldHandler()(implicit p: Parameters) extends Module {
             io.consumer.user_consumed_bytes := 4.U
             consume_width := 4.U
           } .otherwise {
-            assert(Bool(false), "ERROR")
+            assert(false.B, "ERROR")
           }
 
           val write_8bytes = type_tracker === PROTO_TYPES.TYPE_DOUBLE ||
@@ -688,18 +689,18 @@ class FieldHandler()(implicit p: Parameters) extends Module {
           val write_1bytes = type_tracker === PROTO_TYPES.TYPE_BOOL
 
 
-          val write_width = Wire(0.U(4.W))
+          val write_width = WireInit(0.U(4.W))
           when (write_8bytes) {
-            io.fixed_writer_request.bits.write_width := UInt(3)
+            io.fixed_writer_request.bits.write_width := 3.U
             write_width := 8.U
           } .elsewhen (write_4bytes) {
-            io.fixed_writer_request.bits.write_width := UInt(2)
+            io.fixed_writer_request.bits.write_width := 2.U
             write_width := 4.U
           } .elsewhen (write_1bytes) {
-            io.fixed_writer_request.bits.write_width := UInt(0)
+            io.fixed_writer_request.bits.write_width := 0.U
             write_width := 1.U
           } .otherwise {
-            assert(Bool(false), "ERROR")
+            assert(false.B, "ERROR")
           }
 
 
@@ -725,7 +726,7 @@ class FieldHandler()(implicit p: Parameters) extends Module {
           } .elsewhen (output_raw) {
             io.fixed_writer_request.bits.write_data := io.consumer.output_data(63, 0)
           } .otherwise {
-            assert(Bool(false), "ERROR")
+            assert(false.B, "ERROR")
           }
 
           io.fixed_writer_request.valid := io.consumer.output_valid
@@ -746,8 +747,8 @@ class FieldHandler()(implicit p: Parameters) extends Module {
           }
         }
         is (sPackedRepeatedWriteHeader) {
-          io.fixed_writer_request.valid := Bool(true)
-          io.fixed_writer_request.bits.write_width := UInt(3)
+          io.fixed_writer_request.valid := true.B
+          io.fixed_writer_request.bits.write_width := 3.U
 
           io.fixed_writer_request.bits.write_data := ((elements_written << 32) | elements_written(31, 0))(63, 0)
           io.fixed_writer_request.bits.write_addr := repeatedfield_obj_addr
@@ -776,18 +777,18 @@ class FieldHandler()(implicit p: Parameters) extends Module {
       val data_write_ptr = RegInit(0.U(64.W))
 
       val obj_header_write_ptr = RegInit(0.U(64.W))
-      val handling_bytes = RegInit(Bool(false))
+      val handling_bytes = RegInit(false.B)
 
       switch (stringFieldState) {
         is (sStringWait) {
 
 
-          val fixed_alloc_region_next_16B_aligned = (fixed_alloc_region_next + UInt(15)) & ~(UInt(15, 64.W))
+          val fixed_alloc_region_next_16B_aligned = (fixed_alloc_region_next + 15.U) & ~((15).U(64.W))
 
 
           when (string_or_bytes) {
             io.fixed_writer_request.bits.write_data := fixed_alloc_region_next_16B_aligned
-            io.fixed_writer_request.bits.write_width := UInt(3)
+            io.fixed_writer_request.bits.write_width := 3.U
             io.consumer.output_ready := io.fixed_writer_request.ready
             io.fixed_writer_request.valid := io.consumer.output_valid
             io.consumer.user_consumed_bytes := varintlen
@@ -806,7 +807,7 @@ class FieldHandler()(implicit p: Parameters) extends Module {
             handling_bytes := type_info === PROTO_TYPES.TYPE_BYTES
 
             stringLenNoNull := varintresult
-            stringLenWithNull := varintresult + UInt(1)
+            stringLenWithNull := varintresult + 1.U
 
             stringFieldState := sStringWriteHeader0
 
@@ -823,9 +824,9 @@ class FieldHandler()(implicit p: Parameters) extends Module {
             fixed_alloc_region_next)
           data_write_ptr := header0_val
 
-          io.fixed_writer_request.valid := Bool(true)
+          io.fixed_writer_request.valid := true.B
 
-          io.fixed_writer_request.bits.write_width := UInt(3)
+          io.fixed_writer_request.bits.write_width := 3.U
           io.fixed_writer_request.bits.write_data := header0_val
           io.fixed_writer_request.bits.write_addr := obj_header_write_ptr
 
@@ -833,11 +834,11 @@ class FieldHandler()(implicit p: Parameters) extends Module {
             stringFieldState := sStringWriteHeader1
             obj_header_write_ptr := obj_header_write_ptr + 8.U
 
-            val stringLenWithNullPadded_calc = (stringLenWithNull + UInt(15)) & ~(UInt(15, 64.W))
+            val stringLenWithNullPadded_calc = (stringLenWithNull + 15.U) & ~((15).U(64.W))
             stringLenWithNullPadded := stringLenWithNullPadded_calc
 
             val fixed_alloc_region_increment = Mux(stringLenWithNull <= 16.U(64.W),
-                UInt(0),
+                0.U,
                 stringLenWithNullPadded_calc
               )
 
@@ -846,9 +847,9 @@ class FieldHandler()(implicit p: Parameters) extends Module {
           }
         }
         is (sStringWriteHeader1) {
-          io.fixed_writer_request.valid := Bool(true)
+          io.fixed_writer_request.valid := true.B
 
-          io.fixed_writer_request.bits.write_width := UInt(3)
+          io.fixed_writer_request.bits.write_width := 3.U
           io.fixed_writer_request.bits.write_data := stringLenNoNull
           io.fixed_writer_request.bits.write_addr := obj_header_write_ptr
 
@@ -858,7 +859,7 @@ class FieldHandler()(implicit p: Parameters) extends Module {
         }
         is (sStringMoveData) {
           ProtoaccLogger.logInfo("sStringMoveData State\n")
-          val inc_amt_log2 = UInt(4)
+          val inc_amt_log2 = 4.U
           io.fixed_writer_request.bits.write_width := inc_amt_log2
           io.fixed_writer_request.bits.write_addr := data_write_ptr
 
@@ -872,7 +873,7 @@ class FieldHandler()(implicit p: Parameters) extends Module {
 
 
           when (stringLenWithNullPadded > 16.U(64.W)) {
-            val inc_amt = UInt(16)
+            val inc_amt = 16.U
             io.consumer.user_consumed_bytes := inc_amt
 
             val result128 = io.consumer.output_data(127, 0)
@@ -891,12 +892,12 @@ class FieldHandler()(implicit p: Parameters) extends Module {
               stringLenNoNull := stringLenNoNull - inc_amt
             }
           } .elsewhen (stringLenWithNullPadded === 16.U(64.W) && stringLenNoNull =/= 0.U(64.W)) {
-            val inc_amt = UInt(16)
+            val inc_amt = 16.U
             io.consumer.user_consumed_bytes := stringLenNoNull
 
             val result128 = io.consumer.output_data(127, 0)
             val stringLenNoNullShamt = stringLenNoNull(3, 0) << 3
-            io.fixed_writer_request.bits.write_data := result128 & ((1.U(128.W) << (stringLenNoNullShamt)) - UInt(1))
+            io.fixed_writer_request.bits.write_data := result128 & ((1.U(128.W) << (stringLenNoNullShamt)) - 1.U)
 
             io.fixed_writer_request.valid := io.consumer.output_valid
             io.consumer.output_ready := io.fixed_writer_request.ready
@@ -932,12 +933,12 @@ class FieldHandler()(implicit p: Parameters) extends Module {
 
               stringFieldState := sStringWait
             }
-            io.fixed_writer_request.bits.write_data := UInt(0)
-            io.fixed_writer_request.valid := Bool(true)
-            io.consumer.output_ready := Bool(false)
-            io.consumer.user_consumed_bytes := UInt(0)
+            io.fixed_writer_request.bits.write_data := 0.U
+            io.fixed_writer_request.valid := true.B
+            io.consumer.output_ready := false.B
+            io.consumer.user_consumed_bytes := 0.U
           } .otherwise {
-            assert(Bool(false), "should be unreachable\n")
+            assert(false.B, "should be unreachable\n")
           }
 
         }
@@ -955,7 +956,7 @@ class FieldHandler()(implicit p: Parameters) extends Module {
       when (urc_is_repeated_ptr_field) {
         when (urc_teardown_stage === 0.U) {
           io.fixed_writer_request.bits.write_data := ((urc_elems_written << 32) | urc_elems_written(31, 0))(63, 0)
-          io.fixed_writer_request.valid := Bool(true)
+          io.fixed_writer_request.valid := true.B
           io.fixed_writer_request.bits.write_addr := urc_ptr_to_inobjsizes
           io.fixed_writer_request.bits.write_width := 3.U
 
@@ -965,13 +966,13 @@ class FieldHandler()(implicit p: Parameters) extends Module {
           }
         } .otherwise {
           io.fixed_writer_request.bits.write_data := urc_elems_written
-          io.fixed_writer_request.valid := Bool(true)
+          io.fixed_writer_request.valid := true.B
           io.fixed_writer_request.bits.write_addr := urc_ptr_to_repobjsizes
           io.fixed_writer_request.bits.write_width := 3.U
 
           when (io.fixed_writer_request.ready) {
             ProtoaccLogger.logInfo("[unpacked repptrfield] closeout end of buf s1\n")
-            urc_valid := Bool(false)
+            urc_valid := false.B
             array_alloc_region_next := ((urc_next_write_addr + 7.U) >> 3.U) << 3.U
             urc_teardown_stage := 0.U
             fieldState := sReadKey
@@ -980,14 +981,14 @@ class FieldHandler()(implicit p: Parameters) extends Module {
         }
       } .otherwise {
         io.fixed_writer_request.bits.write_data := ((urc_elems_written << 32) | urc_elems_written(31, 0))(63, 0)
-        io.fixed_writer_request.valid := Bool(true)
+        io.fixed_writer_request.valid := true.B
         io.fixed_writer_request.bits.write_addr := urc_ptr_to_inobjsizes
         io.fixed_writer_request.bits.write_width := 3.U
 
         when (io.fixed_writer_request.ready) {
           ProtoaccLogger.logInfo("[unpacked repfield] closeout end of buf\n")
 
-          urc_valid := Bool(false)
+          urc_valid := false.B
           array_alloc_region_next := ((urc_next_write_addr + 7.U) >> 3.U) << 3.U
           fieldState := sReadKey
 

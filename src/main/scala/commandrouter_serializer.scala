@@ -1,6 +1,7 @@
 package protoacc
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import chisel3.{Printable}
 import freechips.rocketchip.tile._
 import org.chipsalliance.cde.config._
@@ -13,19 +14,19 @@ class CommandRouterSerializer()(implicit p: Parameters) extends Module {
 
 
 
-  val FUNCT_SFENCE = UInt(0)
-  val FUNCT_HASBITS_SETUP_INFO = UInt(1)
-  val FUNCT_DO_PROTO_SERIALIZE = UInt(2)
+  val FUNCT_SFENCE = 0.U
+  val FUNCT_HASBITS_SETUP_INFO = 1.U
+  val FUNCT_DO_PROTO_SERIALIZE = 2.U
 
 
-  val FUNCT_MEM_SETUP = UInt(3)
-  val FUNCT_CHECK_COMPLETION = UInt(4)
+  val FUNCT_MEM_SETUP = 3.U
+  val FUNCT_CHECK_COMPLETION = 4.U
 
   val io = IO(new Bundle{
-    val rocc_in = Decoupled(new RoCCCommand).flip
+    val rocc_in = Flipped(Decoupled(new RoCCCommand))
     val rocc_out = Decoupled(new RoCCResponse)
 
-    val sfence_out = Bool(OUTPUT)
+    val sfence_out = Output(Bool())
 
 
     val serializer_info_bundle_out = Decoupled(new SerializerInfoBundle)
@@ -40,7 +41,7 @@ class CommandRouterSerializer()(implicit p: Parameters) extends Module {
   })
 
   val track_number_dispatched_parse_commands = RegInit(0.U(64.W))
-  when (io.rocc_in.fire()) {
+  when (io.rocc_in.fire) {
     when (io.rocc_in.bits.inst.funct === FUNCT_DO_PROTO_SERIALIZE) {
       val next_track_number_dispatched_parse_commands = track_number_dispatched_parse_commands + 1.U
       track_number_dispatched_parse_commands := next_track_number_dispatched_parse_commands
@@ -50,12 +51,12 @@ class CommandRouterSerializer()(implicit p: Parameters) extends Module {
     }
   }
 
-  when (io.rocc_in.fire()) {
+  when (io.rocc_in.fire) {
     ProtoaccLogger.logInfo("gotcmd funct %x, rd %x, rs1val %x, rs2val %x\n", io.rocc_in.bits.inst.funct, io.rocc_in.bits.inst.rd, io.rocc_in.bits.rs1, io.rocc_in.bits.rs2)
   }
 
   io.dmem_status_out.bits <> io.rocc_in.bits
-  io.dmem_status_out.valid := io.rocc_in.fire()
+  io.dmem_status_out.valid := io.rocc_in.fire
 
   val hasbits_setup_info_out_queue = Module(new Queue(new RoCCCommand, 2))
   val do_proto_serialize_out_queue = Module(new Queue(new RoCCCommand, 2))
@@ -82,7 +83,7 @@ class CommandRouterSerializer()(implicit p: Parameters) extends Module {
     io.rocc_in.valid,
     current_funct === FUNCT_SFENCE
   )
-  io.sfence_out := sfence_fire.fire()
+  io.sfence_out := sfence_fire.fire
 
   val hasbits_info_fire = DecoupledHelper(
     io.rocc_in.valid,
@@ -109,10 +110,10 @@ class CommandRouterSerializer()(implicit p: Parameters) extends Module {
   )
 
   io.stringalloc_region_addr_tail.bits := io.rocc_in.bits.rs1
-  io.stringalloc_region_addr_tail.valid := do_alloc_region_addr_fire.fire()
+  io.stringalloc_region_addr_tail.valid := do_alloc_region_addr_fire.fire
 
   io.stringptr_region_addr.bits := io.rocc_in.bits.rs2
-  io.stringptr_region_addr.valid := do_alloc_region_addr_fire.fire()
+  io.stringptr_region_addr.valid := do_alloc_region_addr_fire.fire
 
 
   val do_check_completion_fire = DecoupledHelper(

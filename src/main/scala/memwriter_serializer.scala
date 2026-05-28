@@ -1,6 +1,7 @@
 package protoacc
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import chisel3.{Printable, VecInit}
 import freechips.rocketchip.tile._
 import org.chipsalliance.cde.config._
@@ -15,10 +16,10 @@ class SerMemwriter()(implicit p: Parameters) extends Module
   with MemoryOpConstants {
 
   val io = IO(new Bundle {
-    val memwrites_in = Decoupled(new WriterBundle).flip
+    val memwrites_in = Flipped(Decoupled(new WriterBundle))
 
-    val stringobj_output_addr = Valid(UInt(64.W)).flip
-    val string_ptr_output_addr = Valid(UInt(64.W)).flip
+    val stringobj_output_addr = Flipped(Valid(UInt(64.W)))
+    val string_ptr_output_addr = Flipped(Valid(UInt(64.W)))
 
     val l2io = new L1MemHelperBundle
 
@@ -48,7 +49,7 @@ class SerMemwriter()(implicit p: Parameters) extends Module
       when (writes_input_IF_Q.io.deq.bits.end_of_message) {
         when (writes_input_IF_Q.io.deq.bits.last_for_arbitration_round) {
           val empty_submessage_size = 1.U + writes_input_IF_Q.io.deq.bits.validbytes
-          when (write_inject_Q.io.enq.fire()) {
+          when (write_inject_Q.io.enq.fire) {
             val parent_depth = writes_input_IF_Q.io.deq.bits.depth - 1.U
             size_stack(parent_depth) := size_stack(parent_depth) + empty_submessage_size
             depth := parent_depth
@@ -58,7 +59,7 @@ class SerMemwriter()(implicit p: Parameters) extends Module
           write_inject_Q.io.enq.bits.validbytes := 1.U
         }
       } .otherwise {
-        when (write_inject_Q.io.enq.fire()) {
+        when (write_inject_Q.io.enq.fire) {
           depth := writes_input_IF_Q.io.deq.bits.depth
           size_stack(writes_input_IF_Q.io.deq.bits.depth) := writes_input_IF_Q.io.deq.bits.validbytes
         }
@@ -68,7 +69,7 @@ class SerMemwriter()(implicit p: Parameters) extends Module
       when (writes_input_IF_Q.io.deq.bits.end_of_message) {
         when (writes_input_IF_Q.io.deq.bits.last_for_arbitration_round) {
           val depth_minus_one = depth - 1.U
-          when (write_inject_Q.io.enq.fire()) {
+          when (write_inject_Q.io.enq.fire) {
             depth := depth_minus_one
             size_stack(depth_minus_one) := size_stack(depth_minus_one) + size_stack(depth) + writes_input_IF_Q.io.deq.bits.validbytes
             size_stack(depth) := 0.U
@@ -78,16 +79,16 @@ class SerMemwriter()(implicit p: Parameters) extends Module
           val enc_len_bytes_write = varint_encoder.io.outputBytes
           write_inject_Q.io.enq.bits.data := enc_len
           write_inject_Q.io.enq.bits.validbytes := enc_len_bytes_write
-          when (write_inject_Q.io.enq.fire()) {
+          when (write_inject_Q.io.enq.fire) {
             size_stack(depth) := size_stack(depth) + enc_len_bytes_write
           }
         }
       } .otherwise {
-        when (write_inject_Q.io.enq.fire()) {
+        when (write_inject_Q.io.enq.fire) {
           size_stack(depth) := size_stack(depth) + writes_input_IF_Q.io.deq.bits.validbytes
         }
       }
-  } .elsewhen (write_inject_Q.io.enq.fire()) {
+  } .elsewhen (write_inject_Q.io.enq.fire) {
     assert(false.B, "FAIL, should never have input depth === depth-1\n")
   }
 
@@ -110,7 +111,7 @@ class SerMemwriter()(implicit p: Parameters) extends Module
 
 
   val write_ptrs_Q = Module(new Queue(UInt(64.W), 10))
-  when (write_ptrs_Q.io.enq.fire()) {
+  when (write_ptrs_Q.io.enq.fire) {
     ProtoaccLogger.logInfo("[memwriter-serializer] enqueued ptr: 0x%x\n", write_ptrs_Q.io.enq.bits)
   }
 
@@ -118,7 +119,7 @@ class SerMemwriter()(implicit p: Parameters) extends Module
 
 
 
-  when (write_inject_Q.io.deq.fire()) {
+  when (write_inject_Q.io.deq.fire) {
     ProtoaccLogger.logInfo("[memwriter-serializer] dat: 0x%x, last: 0x%x, bytes: 0x%x, depth: %d, EOM: %d\n",
       write_inject_Q.io.deq.bits.data,
       write_inject_Q.io.deq.bits.last_for_arbitration_round,
@@ -130,19 +131,19 @@ class SerMemwriter()(implicit p: Parameters) extends Module
 
   val NUM_QUEUES = 16
   val QUEUE_DEPTHS = 16
-  val write_start_index = RegInit(UInt(0, log2Up(NUM_QUEUES+1).W))
-  val mem_resp_queues = Vec.fill(NUM_QUEUES)(Module(new Queue(UInt(8.W), QUEUE_DEPTHS)).io)
+  val write_start_index = RegInit(0.U(log2Up(NUM_QUEUES+1).W))
+  val mem_resp_queues = VecInit(Seq.fill(NUM_QUEUES)(Module(new Queue(UInt(8.W), QUEUE_DEPTHS)).io))
 
   val len_to_write = write_inject_Q.io.deq.bits.validbytes
 
   for ( queueno <- 0 until NUM_QUEUES ) {
-    mem_resp_queues((write_start_index +& UInt(queueno)) % UInt(NUM_QUEUES)).enq.bits := write_inject_Q.io.deq.bits.data >> ((len_to_write - (queueno+1).U) << 3)
+    mem_resp_queues((write_start_index +& queueno.U) % NUM_QUEUES.U).enq.bits := write_inject_Q.io.deq.bits.data >> ((len_to_write - (queueno+1).U) << 3)
   }
 
 
   val wrap_len_index_wide = write_start_index +& len_to_write
-  val wrap_len_index_end = wrap_len_index_wide % UInt(NUM_QUEUES)
-  val wrapped = wrap_len_index_wide >= UInt(NUM_QUEUES)
+  val wrap_len_index_end = wrap_len_index_wide % NUM_QUEUES.U
+  val wrapped = wrap_len_index_wide >= NUM_QUEUES.U
 
   val all_queues_ready = mem_resp_queues.map(_.enq.ready).reduce(_ && _)
 
@@ -162,7 +163,7 @@ class SerMemwriter()(implicit p: Parameters) extends Module
 
   write_inject_Q.io.deq.ready := input_fire_allqueues.fire(write_inject_Q.io.deq.valid)
 
-  when (input_fire_allqueues.fire() && !end_of_toplevel) {
+  when (input_fire_allqueues.fire && !end_of_toplevel) {
     write_start_index := wrap_len_index_end
 
     frontend_stringobj_output_addr_tail := frontend_stringobj_output_addr_tail - len_to_write
@@ -171,23 +172,23 @@ class SerMemwriter()(implicit p: Parameters) extends Module
 
   for ( queueno <- 0 until NUM_QUEUES ) {
     val use_this_queue = Mux(wrapped,
-                             (UInt(queueno) >= write_start_index) || (UInt(queueno) < wrap_len_index_end),
-                             (UInt(queueno) >= write_start_index) && (UInt(queueno) < wrap_len_index_end)
+                             (queueno.U >= write_start_index) || (queueno.U < wrap_len_index_end),
+                             (queueno.U >= write_start_index) && (queueno.U < wrap_len_index_end)
                             )
-    mem_resp_queues(queueno).enq.valid := input_fire_allqueues.fire() && use_this_queue && !end_of_toplevel
+    mem_resp_queues(queueno).enq.valid := input_fire_allqueues.fire && use_this_queue && !end_of_toplevel
   }
 
   for ( queueno <- 0 until NUM_QUEUES ) {
     when (mem_resp_queues(queueno).deq.valid) {
-      ProtoaccLogger.logInfo("qi%d,0x%x\n", UInt(queueno), mem_resp_queues(queueno).deq.bits)
+      ProtoaccLogger.logInfo("qi%d,0x%x\n", queueno.U, mem_resp_queues(queueno).deq.bits)
     }
   }
 
 
 
 
-  val read_start_index = RegInit(UInt(0, log2Up(NUM_QUEUES+1).W))
-  val len_already_consumed = RegInit(UInt(0, 64.W))
+  val read_start_index = RegInit(0.U(log2Up(NUM_QUEUES+1).W))
+  val len_already_consumed = RegInit(0.U(64.W))
 
   val remapVecData = Wire(Vec(NUM_QUEUES, UInt(8.W)))
   val remapVecValids = Wire(Vec(NUM_QUEUES, Bool()))
@@ -195,7 +196,7 @@ class SerMemwriter()(implicit p: Parameters) extends Module
 
 
   for (queueno <- 0 until NUM_QUEUES) {
-    val remapindex = (UInt(queueno) +& read_start_index) % UInt(NUM_QUEUES)
+    val remapindex = (queueno.U +& read_start_index) % NUM_QUEUES.U
     remapVecData(queueno) := mem_resp_queues(remapindex).deq.bits
     remapVecValids(queueno) := mem_resp_queues(remapindex).deq.valid
     mem_resp_queues(remapindex).deq.ready := remapVecReadys(queueno)
@@ -259,11 +260,11 @@ class SerMemwriter()(implicit p: Parameters) extends Module
   )
 
   for (queueno <- 0 until NUM_QUEUES) {
-    remapVecReadys(queueno) := (UInt(queueno) < bytes_to_write) && mem_write_fire.fire()
+    remapVecReadys(queueno) := (queueno.U < bytes_to_write) && mem_write_fire.fire
   }
 
-  when (mem_write_fire.fire()) {
-    read_start_index := (read_start_index +& bytes_to_write) % UInt(NUM_QUEUES)
+  when (mem_write_fire.fire) {
+    read_start_index := (read_start_index +& bytes_to_write) % NUM_QUEUES.U
     backend_stringobj_output_addr_tail := backend_stringobj_output_addr_tail - bytes_to_write
     len_already_consumed := len_already_consumed + bytes_to_write
     ProtoaccLogger.logInfo("[memwriter-serializer] writefire: addr: 0x%x, data 0x%x, size %d\n",
@@ -294,7 +295,7 @@ class SerMemwriter()(implicit p: Parameters) extends Module
     messages_completed := messages_completed + 1.U
   }
 
-  when (write_ptrs_Q.io.deq.fire()) {
+  when (write_ptrs_Q.io.deq.fire) {
     ProtoaccLogger.logInfo("[memwriter-serializer] write ptr addr: 0x%x, write ptr val 0x%x\n", backend_string_ptr_output_addr, write_ptrs_Q.io.deq.bits)
   }
 
