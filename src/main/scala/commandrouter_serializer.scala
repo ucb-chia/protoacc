@@ -83,7 +83,7 @@ class CommandRouterSerializer()(implicit p: Parameters) extends Module {
     io.rocc_in.valid,
     current_funct === FUNCT_SFENCE
   )
-  io.sfence_out := sfence_fire.fire
+  io.sfence_out := sfence_fire.fire()
 
   val hasbits_info_fire = DecoupledHelper(
     io.rocc_in.valid,
@@ -110,10 +110,10 @@ class CommandRouterSerializer()(implicit p: Parameters) extends Module {
   )
 
   io.stringalloc_region_addr_tail.bits := io.rocc_in.bits.rs1
-  io.stringalloc_region_addr_tail.valid := do_alloc_region_addr_fire.fire
+  io.stringalloc_region_addr_tail.valid := do_alloc_region_addr_fire.fire()
 
   io.stringptr_region_addr.bits := io.rocc_in.bits.rs2
-  io.stringptr_region_addr.valid := do_alloc_region_addr_fire.fire
+  io.stringptr_region_addr.valid := do_alloc_region_addr_fire.fire()
 
 
   val do_check_completion_fire = DecoupledHelper(

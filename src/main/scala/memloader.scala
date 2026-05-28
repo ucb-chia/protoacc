@@ -105,9 +105,9 @@ class MemLoader()(implicit p: Parameters) extends Module
   load_info_queue.io.enq.bits.end_byte := Mux(addrinc === words_to_load_minus_one, base_addr_end_index_inclusive, 15.U)
 
 
-  when (request_fire.fire && (addrinc === words_to_load_minus_one)) {
+  when (request_fire.fire() && (addrinc === words_to_load_minus_one)) {
     addrinc := 0.U
-  } .elsewhen (request_fire.fire) {
+  } .elsewhen (request_fire.fire()) {
     addrinc := addrinc + 1.U
   }
 
@@ -171,7 +171,7 @@ class MemLoader()(implicit p: Parameters) extends Module
   load_info_queue.io.deq.ready := resp_fire_noqueues.fire(load_info_queue.io.deq.valid, all_queues_ready)
   io.l1helperUser.resp.ready := resp_fire_noqueues.fire(io.l1helperUser.resp.valid, all_queues_ready)
 
-  val resp_fire_allqueues = resp_fire_noqueues.fire && all_queues_ready
+  val resp_fire_allqueues = resp_fire_noqueues.fire() && all_queues_ready
   when (resp_fire_allqueues) {
     write_start_index := wrap_len_index_end
   }
@@ -181,7 +181,7 @@ class MemLoader()(implicit p: Parameters) extends Module
                              (queueno.U >= write_start_index) || (queueno.U < wrap_len_index_end),
                              (queueno.U >= write_start_index) && (queueno.U < wrap_len_index_end)
                             )
-    mem_resp_queues(queueno).enq.valid := resp_fire_noqueues.fire && use_this_queue && all_queues_ready
+    mem_resp_queues(queueno).enq.valid := resp_fire_noqueues.fire() && use_this_queue && all_queues_ready
   }
 
   for ( queueno <- 0 until NUM_QUEUES ) {
@@ -237,7 +237,7 @@ class MemLoader()(implicit p: Parameters) extends Module
     enough_data
   )
 
-  when (read_fire.fire) {
+  when (read_fire.fire()) {
     ProtoaccLogger.logInfo("MEMLOADER READ: bytesread %d\n", io.consumer.user_consumed_bytes)
 
   }
@@ -245,10 +245,10 @@ class MemLoader()(implicit p: Parameters) extends Module
   io.consumer.output_valid := read_fire.fire(io.consumer.output_ready)
 
   for (queueno <- 0 until NUM_QUEUES) {
-    remapVecReadys(queueno) := (queueno.U < io.consumer.user_consumed_bytes) && read_fire.fire
+    remapVecReadys(queueno) := (queueno.U < io.consumer.user_consumed_bytes) && read_fire.fire()
   }
 
-  when (read_fire.fire) {
+  when (read_fire.fire()) {
     read_start_index := (read_start_index +& io.consumer.user_consumed_bytes) % (NUM_QUEUES).U
   }
 
@@ -257,7 +257,7 @@ class MemLoader()(implicit p: Parameters) extends Module
   io.consumer.output_min_field_no := buf_info_queue.io.deq.bits.min_field_no
   io.consumer.output_decoded_dest_base_addr := buf_info_queue.io.deq.bits.decoded_dest_base_addr
 
-  when (read_fire.fire) {
+  when (read_fire.fire()) {
     when (buf_last) {
       len_already_consumed := 0.U
     } .otherwise {

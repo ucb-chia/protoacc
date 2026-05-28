@@ -249,7 +249,7 @@ class FieldHandler()(implicit p: Parameters) extends Module {
       hasbitswriter.io.requestin.bits.relative_fieldno := field_no - current_min_field_no
       hasbitswriter.io.requestin.bits.flushonly := false.B
 
-      when (fire_sReadKey.fire) {
+      when (fire_sReadKey.fire()) {
         ProtoaccLogger.logInfo("Read Key. fieldno: %d, wire_type: %d\n", field_no, wire_type)
         fieldState := sPrepState
         field_no_reg := field_no

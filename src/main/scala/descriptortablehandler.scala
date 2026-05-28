@@ -274,13 +274,13 @@ class DescriptorTableHandler()(implicit p: Parameters) extends Module
   fieldDestResponseQueue.io.enq.valid := fire_response.fire(fieldDestResponseQueue.io.enq.ready)
   io.l1helperUser.resp.ready := fire_response.fire(io.l1helperUser.resp.valid)
 
-  when (fire_request.fire) {
+  when (fire_request.fire()) {
     request_outstanding := true.B
   }
 
   val last_descriptor_request = Reg(new DescriptorRequest)
 
-  when (fire_response.fire) {
+  when (fire_response.fire()) {
     request_outstanding := false.B
   }
 
@@ -302,7 +302,7 @@ class DescriptorTableHandler()(implicit p: Parameters) extends Module
 
   switch (extraRequestsMode) {
     is (sKickOffExtraRequests) {
-      when (fire_response.fire) {
+      when (fire_response.fire()) {
         when (fieldDestResponseQueue.io.enq.bits.proto_field_type === PROTO_TYPES.TYPE_MESSAGE) {
           extraRequestsMode := sGetNextDescriptor
           last_descriptor_request := FDR_queue.io.deq.bits

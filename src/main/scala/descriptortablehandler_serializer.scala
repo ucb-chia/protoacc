@@ -101,7 +101,7 @@ class SerDescriptorTableHandler()(implicit p: Parameters) extends Module
   )
 
   io.serializer_cmd_in.ready := accept_cpu_command.fire(io.serializer_cmd_in.valid)
-  when (accept_cpu_command.fire) {
+  when (accept_cpu_command.fire()) {
     ProtoaccLogger.logInfo("[serdescriptor] acc message: depth %d, descr_addr 0x%x, cpp_obj 0x%x, has_bits_base_offset_only 0x%x, min_fieldno %d, max_fieldno %d\n",
       depth,
       io.serializer_cmd_in.bits.descriptor_table_addr,
@@ -287,7 +287,7 @@ class SerDescriptorTableHandler()(implicit p: Parameters) extends Module
       hasbits_request_meta_Q.io.deq.ready := do_hasbits_to_descr.fire(hasbits_request_meta_Q.io.deq.valid) && hasbits_done_chunk
       descr_request_Q.io.enq.valid := do_hasbits_to_descr.fire(descr_request_Q.io.enq.ready) && hasbit_for_current_fieldno
 
-      when (do_hasbits_to_descr.fire) {
+      when (do_hasbits_to_descr.fire()) {
         val no_present_submessages = (is_submessage_current_value & io.l2helperUser1.resp.bits.data) === 0.U
         when (no_present_submessages && !already_issued_ADVANCE_OK) {
           ProtoaccLogger.logInfo("[serdescriptor] Releasing frontend to advance: chunk of message contains submessages, but none are present.\n")
@@ -414,7 +414,7 @@ class SerDescriptorTableHandler()(implicit p: Parameters) extends Module
       io.l2helperUser2.req.bits.addr := descr_addr
       when (descr_request_Q.io.deq.bits.is_submessage) {
         io.l2helperUser2.req.bits.size := 4.U
-        when (do_descr_request_frontside.fire) {
+        when (do_descr_request_frontside.fire()) {
           deserLoaderState := sWaitForSubmADT
           ProtoaccLogger.logInfo("[serdescriptor] loading submessage descr, relative_fieldno %d, descraddr 0x%x, descrbase 0x%x, loadsize %d\n",
             des_load_fieldno,
@@ -424,7 +424,7 @@ class SerDescriptorTableHandler()(implicit p: Parameters) extends Module
         }
       } .otherwise {
         io.l2helperUser2.req.bits.size := 3.U
-        when (do_descr_request_regular.fire) {
+        when (do_descr_request_regular.fire()) {
           ProtoaccLogger.logInfo("[serdescriptor] loading non-submessage descr, relative_fieldno %d, descraddr 0x%x, descrbase 0x%x, loadsize %d\n",
             des_load_fieldno,
             descr_addr,
@@ -435,7 +435,7 @@ class SerDescriptorTableHandler()(implicit p: Parameters) extends Module
     }
 
     is (sWaitForSubmADT) {
-      when (do_descr_resp_frontside.fire) {
+      when (do_descr_resp_frontside.fire()) {
         ProtoaccLogger.logInfo("[serdescriptor] got-submessage-field ADT entry: 0x%x. cpp_offset: 0x%x, typeinfo: 0x%x, is_repeated: 0x%x, nested_descr_ptr: 0x%x\n",
           io.l2helperUser2.resp.bits.data,
           descr_result_offset,
@@ -454,7 +454,7 @@ class SerDescriptorTableHandler()(implicit p: Parameters) extends Module
     is (sIssueCPPObjAddrReq) {
       io.l2helperUser2.req.bits.addr := saved_ADT_offset + descr_request_Q.io.deq.bits.cpp_obj_addr
       io.l2helperUser2.req.bits.size := 3.U
-      when (do_descr_request_frontside.fire) {
+      when (do_descr_request_frontside.fire()) {
         ProtoaccLogger.logInfo("[serdescriptor] loading submessage cpp obj addr from addr 0x%x\n", io.l2helperUser2.req.bits.addr)
         deserLoaderState := sIssueADTHeaderReq
       }
@@ -462,20 +462,20 @@ class SerDescriptorTableHandler()(implicit p: Parameters) extends Module
     is (sIssueADTHeaderReq) {
       io.l2helperUser2.req.bits.addr := saved_ADT_nested_descriptor_ptr + 16.U
       io.l2helperUser2.req.bits.size := 4.U
-      when (do_descr_request_frontside.fire) {
+      when (do_descr_request_frontside.fire()) {
         ProtoaccLogger.logInfo("[serdescriptor] loading submessage ADT header chunk from addr 0x%x\n", io.l2helperUser2.req.bits.addr)
         deserLoaderState := sAcceptCPPObjAddr
       }
     }
     is (sAcceptCPPObjAddr) {
-      when (do_descr_resp_frontside.fire) {
+      when (do_descr_resp_frontside.fire()) {
         saved_next_CPP_object_base := io.l2helperUser2.resp.bits.data
         deserLoaderState := sAcceptADTHeaderReq
         ProtoaccLogger.logInfo("[serdescriptor] got submessage cpp obj addr: 0x%x\n", io.l2helperUser2.resp.bits.data)
       }
     }
     is (sAcceptADTHeaderReq) {
-      when (do_descr_resp_frontside.fire) {
+      when (do_descr_resp_frontside.fire()) {
         ProtoaccLogger.logInfo("[serdescriptor] got ADT header data: 0x%x\n", io.l2helperUser2.resp.bits.data)
 
         val new_hasbits_offset = io.l2helperUser2.resp.bits.data(63, 0)
@@ -557,7 +557,7 @@ class SerDescriptorTableHandler()(implicit p: Parameters) extends Module
     serFieldHandlerOutput_Q.io.enq.bits.depth := use_depth
     serFieldHandlerOutput_Q.io.enq.bits.end_of_message := true.B
 
-    when (do_descr_response.fire) {
+    when (do_descr_response.fire()) {
       ProtoaccLogger.logInfo("[serdescriptor] EOM command. dispatched to fieldhandler: field_num of ending message: %d, depth %d\n",
         serFieldHandlerOutput_Q.io.enq.bits.field_number,
         serFieldHandlerOutput_Q.io.enq.bits.depth
@@ -565,7 +565,7 @@ class SerDescriptorTableHandler()(implicit p: Parameters) extends Module
     }
   }
 
-  when (do_descr_response.fire) {
+  when (do_descr_response.fire()) {
     ProtoaccLogger.logInfo("[serdescriptor] got descr entry. dispatched to fieldhandler: typeinfo %d, offset 0x%x, is_nested %d, is_repeated %d, nested_descriptor_ptr 0x%x\n",
       descr_result_typeinfo,
       descr_result_offset,

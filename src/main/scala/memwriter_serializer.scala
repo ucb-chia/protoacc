@@ -163,7 +163,7 @@ class SerMemwriter()(implicit p: Parameters) extends Module
 
   write_inject_Q.io.deq.ready := input_fire_allqueues.fire(write_inject_Q.io.deq.valid)
 
-  when (input_fire_allqueues.fire && !end_of_toplevel) {
+  when (input_fire_allqueues.fire() && !end_of_toplevel) {
     write_start_index := wrap_len_index_end
 
     frontend_stringobj_output_addr_tail := frontend_stringobj_output_addr_tail - len_to_write
@@ -175,7 +175,7 @@ class SerMemwriter()(implicit p: Parameters) extends Module
                              (queueno.U >= write_start_index) || (queueno.U < wrap_len_index_end),
                              (queueno.U >= write_start_index) && (queueno.U < wrap_len_index_end)
                             )
-    mem_resp_queues(queueno).enq.valid := input_fire_allqueues.fire && use_this_queue && !end_of_toplevel
+    mem_resp_queues(queueno).enq.valid := input_fire_allqueues.fire() && use_this_queue && !end_of_toplevel
   }
 
   for ( queueno <- 0 until NUM_QUEUES ) {
@@ -260,10 +260,10 @@ class SerMemwriter()(implicit p: Parameters) extends Module
   )
 
   for (queueno <- 0 until NUM_QUEUES) {
-    remapVecReadys(queueno) := (queueno.U < bytes_to_write) && mem_write_fire.fire
+    remapVecReadys(queueno) := (queueno.U < bytes_to_write) && mem_write_fire.fire()
   }
 
-  when (mem_write_fire.fire) {
+  when (mem_write_fire.fire()) {
     read_start_index := (read_start_index +& bytes_to_write) % NUM_QUEUES.U
     backend_stringobj_output_addr_tail := backend_stringobj_output_addr_tail - bytes_to_write
     len_already_consumed := len_already_consumed + bytes_to_write

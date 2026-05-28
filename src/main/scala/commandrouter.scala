@@ -67,7 +67,7 @@ class CommandRouter()(implicit p: Parameters) extends Module {
     io.rocc_in.valid,
     current_funct === FUNCT_SFENCE
   )
-  io.sfence_out := sfence_fire.fire
+  io.sfence_out := sfence_fire.fire()
 
   val proto_parse_info_fire = DecoupledHelper(
     io.rocc_in.valid,
@@ -94,10 +94,10 @@ class CommandRouter()(implicit p: Parameters) extends Module {
   )
 
   io.fixed_alloc_region_addr.bits := io.rocc_in.bits.rs1
-  io.fixed_alloc_region_addr.valid := do_alloc_region_addr_fire.fire
+  io.fixed_alloc_region_addr.valid := do_alloc_region_addr_fire.fire()
 
   io.array_alloc_region_addr.bits := io.rocc_in.bits.rs2
-  io.array_alloc_region_addr.valid := do_alloc_region_addr_fire.fire
+  io.array_alloc_region_addr.valid := do_alloc_region_addr_fire.fire()
 
 
   val do_check_completion_fire = DecoupledHelper(
