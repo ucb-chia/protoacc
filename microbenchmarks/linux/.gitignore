@@ -1,0 +1,2 @@
+*.riscv
+overlay/root/*.riscv
