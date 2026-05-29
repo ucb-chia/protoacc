@@ -132,12 +132,18 @@ class SerMemwriter()(implicit p: Parameters) extends Module
   val NUM_QUEUES = 16
   val QUEUE_DEPTHS = 16
   val write_start_index = RegInit(0.U(log2Up(NUM_QUEUES+1).W))
-  val mem_resp_queues = VecInit(Seq.fill(NUM_QUEUES)(Module(new Queue(UInt(8.W), QUEUE_DEPTHS)).io))
+  val mem_resp_queues = Seq.fill(NUM_QUEUES)(Module(new Queue(UInt(8.W), QUEUE_DEPTHS)).io)
 
   val len_to_write = write_inject_Q.io.deq.bits.validbytes
 
+  // scatter enq data through an intermediary wire vec (dynamic write index),
+  // then drive each queue's enq.bits statically (rotation is a bijection).
+  val mem_resp_enq_data = WireInit(VecInit(Seq.fill(NUM_QUEUES)(0.U(8.W))))
   for ( queueno <- 0 until NUM_QUEUES ) {
-    mem_resp_queues((write_start_index +& queueno.U) % NUM_QUEUES.U).enq.bits := write_inject_Q.io.deq.bits.data >> ((len_to_write - (queueno+1).U) << 3)
+    mem_resp_enq_data((write_start_index +& queueno.U) % NUM_QUEUES.U) := write_inject_Q.io.deq.bits.data >> ((len_to_write - (queueno+1).U) << 3)
+  }
+  for ( p <- 0 until NUM_QUEUES ) {
+    mem_resp_queues(p).enq.bits := mem_resp_enq_data(p)
   }
 
 
@@ -195,11 +201,17 @@ class SerMemwriter()(implicit p: Parameters) extends Module
   val remapVecReadys = Wire(Vec(NUM_QUEUES, Bool()))
 
 
+  val mem_resp_deq_bits = VecInit(mem_resp_queues.map(_.deq.bits))
+  val mem_resp_deq_valid = VecInit(mem_resp_queues.map(_.deq.valid))
+  val mem_resp_deq_ready = WireInit(VecInit(Seq.fill(NUM_QUEUES)(false.B)))
   for (queueno <- 0 until NUM_QUEUES) {
     val remapindex = (queueno.U +& read_start_index) % NUM_QUEUES.U
-    remapVecData(queueno) := mem_resp_queues(remapindex).deq.bits
-    remapVecValids(queueno) := mem_resp_queues(remapindex).deq.valid
-    mem_resp_queues(remapindex).deq.ready := remapVecReadys(queueno)
+    remapVecData(queueno) := mem_resp_deq_bits(remapindex)
+    remapVecValids(queueno) := mem_resp_deq_valid(remapindex)
+    mem_resp_deq_ready(remapindex) := remapVecReadys(queueno)
+  }
+  for (p <- 0 until NUM_QUEUES) {
+    mem_resp_queues(p).deq.ready := mem_resp_deq_ready(p)
   }
 
   val count_valids = remapVecValids.map(_.asUInt).reduce(_ +& _)

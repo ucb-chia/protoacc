@@ -21,7 +21,7 @@ class FieldDispatchRouter(numHandlers: Int)(implicit p: Parameters) extends Modu
 
   val index = RegInit(0.U(log2Up(numHandlers+1).W))
 
-  val outputQueues = VecInit(Seq.fill(numHandlers)(Module(new Queue(new DescrToHandlerBundle, 4)).io))
+  val outputQueues = Seq.fill(numHandlers)(Module(new Queue(new DescrToHandlerBundle, 4)).io)
 
   for (i <- 0 until numHandlers) {
     io.to_fieldhandlers(i) <> outputQueues(i).deq
@@ -29,7 +29,7 @@ class FieldDispatchRouter(numHandlers: Int)(implicit p: Parameters) extends Modu
     outputQueues(i).enq.bits <> io.fields_req_in.bits
     outputQueues(i).enq.valid := io.fields_req_in.valid && (index === i.U)
   }
-  io.fields_req_in.ready := outputQueues(index).enq.ready
+  io.fields_req_in.ready := VecInit(outputQueues.map(_.enq.ready))(index)
 
   when (io.fields_req_in.fire) {
     when (index === (numHandlers-1).U) {

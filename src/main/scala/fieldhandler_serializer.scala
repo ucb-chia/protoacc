@@ -34,9 +34,13 @@ class SerFieldHandler(logPrefix: String)(implicit p: Parameters) extends Module
   val outputQ = Module(new Queue(new WriterBundle, 4))
   io.writer_output <> outputQ.io.deq
   outputQ.io.enq.valid := false.B
+  outputQ.io.enq.bits := 0.U.asTypeOf(outputQ.io.enq.bits)
 
   io.memread.req.valid := false.B
   io.memread.req.bits.cmd := M_XRD
+  io.memread.req.bits.addr := 0.U
+  io.memread.req.bits.size := 0.U
+  io.memread.req.bits.data := 0.U
   io.memread.resp.ready := false.B
   io.ops_in.ready := false.B
 

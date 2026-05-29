@@ -231,6 +231,8 @@ class FieldHandler()(implicit p: Parameters) extends Module {
   io.l1helperUser2 <> hasbitswriter.io.l1helperUser
   hasbitswriter.io.requestin.valid := false.B
   hasbitswriter.io.requestin.bits.flushonly := false.B
+  hasbitswriter.io.requestin.bits.hasbits_base_addr := 0.U
+  hasbitswriter.io.requestin.bits.relative_fieldno := 0.U
 
   val fire_sReadKey = DecoupledHelper(
     descriptor_table_handler.io.field_dest_request.ready,

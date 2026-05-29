@@ -92,6 +92,10 @@ class L1MemHelperModule(outer: L1MemHelper, printInfo: String = "", queueRequest
   tlb.io.req.bits.size := request_input.bits.size
   tlb.io.req.bits.cmd := request_input.bits.cmd
   tlb.io.req.bits.passthrough := false.B
+  tlb.io.req.bits.prv := DontCare
+  tlb.io.req.bits.v   := DontCare
+  tlb.io.sfence.bits.hv := DontCare
+  tlb.io.sfence.bits.hg := DontCare
   val tlb_ready = tlb.io.req.ready && !tlb.io.resp.miss
 
   io.ptw <> tlb.io.ptw
@@ -109,6 +113,7 @@ class L1MemHelperModule(outer: L1MemHelper, printInfo: String = "", queueRequest
 
   val tags_for_issue_Q = Module(new Queue(UInt(outer.tlTagBits.W), outer.numOutstandingRequestsAllowed * 2))
   tags_for_issue_Q.io.enq.valid := false.B
+  tags_for_issue_Q.io.enq.bits := DontCare
 
   val tags_init_reg = RegInit(0.U((outer.tlTagBits+1).W))
   when (tags_init_reg =/= (outer.numOutstandingRequestsAllowed).U) {
@@ -166,10 +171,12 @@ class L1MemHelperModule(outer: L1MemHelper, printInfo: String = "", queueRequest
     assert(false.B, "ERR")
   }
 
-  val tl_resp_queues = VecInit(Seq.fill(outer.numOutstandingRequestsAllowed)(
-    Module(new Queue(new L1RespInternal, 4, flow=true)).io))
+  val tl_resp_queues = Seq.fill(outer.numOutstandingRequestsAllowed)(
+    Module(new Queue(new L1RespInternal, 4, flow=true)).io)
 
-  val current_request_tag_has_response_space = tl_resp_queues(tags_for_issue_Q.io.deq.bits).enq.ready
+  val current_request_tag_has_response_space = tl_resp_queues.zipWithIndex.map({ case (q, idx) =>
+    q.enq.ready && (idx.U === tags_for_issue_Q.io.deq.bits)
+  }).reduce(_ || _)
 
   val fire_req = DecoupledHelper(
     request_input.valid,
@@ -214,7 +221,9 @@ class L1MemHelperModule(outer: L1MemHelper, printInfo: String = "", queueRequest
 
 
 
-  val selectQready = tl_resp_queues(dmem.d.bits.source).enq.ready
+  val selectQready = tl_resp_queues.zipWithIndex.map({ case(q, idx) =>
+    q.enq.ready && (idx.U === dmem.d.bits.source)
+  }).reduce(_ || _)
 
   val fire_actual_mem_resp = DecoupledHelper(
     selectQready,
@@ -242,8 +251,9 @@ class L1MemHelperModule(outer: L1MemHelper, printInfo: String = "", queueRequest
 
 
 
-  val currentQueue = tl_resp_queues(outstanding_req_addr.io.deq.bits.tag)
-  val queueValid = currentQueue.deq.valid
+  val queueValid = tl_resp_queues.zipWithIndex.map({ case(q, idx) =>
+    q.deq.valid && (idx.U === outstanding_req_addr.io.deq.bits.tag)
+  }).reduce(_ || _)
 
   val fire_user_resp = DecoupledHelper(
     queueValid,
@@ -251,7 +261,16 @@ class L1MemHelperModule(outer: L1MemHelper, printInfo: String = "", queueRequest
     outstanding_req_addr.io.deq.valid
   )
 
-  val resultdata = currentQueue.deq.bits.data >> (outstanding_req_addr.io.deq.bits.addrindex << 3)
+  val resultdata = tl_resp_queues.zipWithIndex.map({ case(q, idx) =>
+    val is_current_q = (idx.U === outstanding_req_addr.io.deq.bits.tag)
+    val data = Wire(q.deq.bits.data.cloneType)
+    when (is_current_q) {
+      data := q.deq.bits.data >> (outstanding_req_addr.io.deq.bits.addrindex << 3)
+    } .otherwise {
+      data := 0.U
+    }
+    data
+  }).reduce(_ | _)
 
   response_output.bits.data := resultdata
 

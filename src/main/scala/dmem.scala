@@ -46,6 +46,10 @@ class DmemModuleImp(outer: DmemModule)(implicit p: Parameters) extends LazyModul
   tlb.io.req.bits.size := io.req.bits.size
   tlb.io.req.bits.cmd := io.req.bits.cmd
   tlb.io.req.bits.passthrough := false.B
+  tlb.io.req.bits.prv := DontCare
+  tlb.io.req.bits.v   := DontCare
+  tlb.io.sfence.bits.hv := DontCare
+  tlb.io.sfence.bits.hg := DontCare
   val tlb_ready = tlb.io.req.ready && !tlb.io.resp.miss
 
   io.ptw <> tlb.io.ptw
