@@ -30,7 +30,21 @@ static size_t descr_len(const uint64_t* d) {
     uint64_t e3 = d[3];
     uint32_t minf = (uint32_t)(e3 >> 32);
     uint32_t maxf = (uint32_t)(e3 & 0xffffffffULL);
-    return 4 + (size_t)(maxf - minf + 1) * 2;
+    size_t nrel = (size_t)(maxf - minf + 1);
+    // header(4) + 2 u64 per field + is_submessage bitfield. The serializer reads
+    // the is_submessage bits at byte offset 32 + nfields*16 (one 32-bit word per
+    // 32 fields, rounded up to u64). Omitting it makes the serializer mis-detect
+    // sub-message fields -> SerFieldHandler "not yet implemented" assert.
+    size_t sub_u64 = (((nrel + 31) / 32) + 1) / 2;
+    return 4 + nrel * 2 + sub_u64;
+}
+
+// u64 count of the field-entry region (2 per field); nested pointers and the
+// is_submessage bitfield are located relative to this.
+static size_t descr_field_words(const uint64_t* d) {
+    uint64_t e3 = d[3];
+    uint32_t minf = (uint32_t)(e3 >> 32), maxf = (uint32_t)(e3 & 0xffffffffULL);
+    return (size_t)(maxf - minf + 1) * 2;
 }
 
 // Register a descriptor table (dedup by host pointer) and recurse into the
@@ -40,8 +54,8 @@ static string register_table(const uint64_t* d) {
     if (it != table_names.end()) return it->second;
     string name = "descr_" + to_string(tbl_counter++);
     table_names[d] = name;
-    size_t n = descr_len(d);
-    for (size_t i = 4; i + 1 < n; i += 2) {
+    size_t fend = 4 + descr_field_words(d);
+    for (size_t i = 4; i + 1 < fend; i += 2) {
         const uint64_t* child = (const uint64_t*)d[i + 1];
         if (child) register_table(child);
     }
@@ -53,11 +67,16 @@ static void emit_tables() {
     for (auto& pr : emit_order) {
         const uint64_t* d = pr.second;
         size_t n = descr_len(d);
-        fprintf(out, "static uint64_t %s[%zu] = {\n", pr.first.c_str(), n);
+        size_t fend = 4 + descr_field_words(d);
+        // 16-byte aligned: the accelerator reads 128-bit field entries and the
+        // TL monitor requires Get addresses aligned to the access size (the
+        // original _ACCEL_DESCRIPTORS arrays are declared alignas(16)).
+        fprintf(out, "__attribute__((aligned(16))) static uint64_t %s[%zu] = {\n", pr.first.c_str(), n);
         for (size_t i = 0; i < n; i++) {
             uint64_t v = d[i];
-            if (i == 0) v = 0;                       // default-instance vptr (unused for round-trip)
-            if (i >= 5 && ((i - 4) % 2 == 1)) v = 0; // nested descriptor pointer -> patched at runtime
+            if (i == 0) v = 0;                                       // default-instance vptr (unused)
+            else if (i >= 5 && i < fend && ((i - 4) % 2 == 1)) v = 0; // nested ptr -> patched at runtime
+            // everything else (incl. the trailing is_submessage bitfield) verbatim
             fprintf(out, "  0x%016llxULL,\n", (unsigned long long)v);
         }
         fprintf(out, "};\n");
@@ -65,8 +84,8 @@ static void emit_tables() {
     fprintf(out, "static void patch_descriptors(void) {\n");
     for (auto& pr : emit_order) {
         const uint64_t* d = pr.second;
-        size_t n = descr_len(d);
-        for (size_t i = 4; i + 1 < n; i += 2) {
+        size_t fend = 4 + descr_field_words(d);
+        for (size_t i = 4; i + 1 < fend; i += 2) {
             const uint64_t* child = (const uint64_t*)d[i + 1];
             if (child) {
                 fprintf(out, "  %s[%zu] = (uint64_t)(uintptr_t)%s;\n",

@@ -43,13 +43,10 @@ gen_data: gen_data.cpp $(PB_GEN)/primitives.pb.cc
 $(DATA_HEADERS): gen_data
 	./gen_data
 
-# nested messages: the serializer RTL doesn't implement sub-message fields, so
-# this test is deserialize-only (parse must complete).
-nested.riscv: EXTRA := -DPARSE_ONLY
-
-# bare-metal test = self-contained harness only (no accellib, no protobuf)
+# bare-metal test = self-contained harness only (no accellib, no protobuf).
+# All four (double/uint64/string/nested) do a full parse->serialize round-trip.
 %.riscv: selfcontained.cpp %_data.h htif_bigheap.ld
-	$(RISCV_CXX) $(RISCV_FLAGS) $(EXTRA) -DDATA_HEADER='"$*_data.h"' selfcontained.cpp -o $@
+	$(RISCV_CXX) $(RISCV_FLAGS) -DDATA_HEADER='"$*_data.h"' selfcontained.cpp -o $@
 
 clean:
 	rm -f gen_data $(RISCV_BINS) $(DATA_HEADERS)

@@ -79,15 +79,6 @@ int main() {
     { uint64_t rv; ROCC_INSTRUCTION_D(P2, rv, F_CHECK); asm volatile("fence"); }
     printf("[5] parse complete\n");
 
-#ifdef PARSE_ONLY
-    // The protoacc serializer RTL asserts "not yet implemented" on sub-message
-    // fields (fieldhandler_serializer.scala), so nested messages can only be
-    // round-tripped through the deserializer. Parse completing is the pass.
-    printf("PASSED %s parse-only (serializer does not support this message type)\n", TEST_NAME);
-    htif_exit(0);
-    return 0;
-#endif
-
     // ---- serialize (custom3) ----
     uint64_t hasbits_off = d[2];
     uint64_t minmax = d[3];
