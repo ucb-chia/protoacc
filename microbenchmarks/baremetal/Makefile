@@ -2,12 +2,18 @@
 #
 # Host step: build gen_data (links host protobuf) and run it to emit the
 # precomputed <test>_data.h headers (descriptor tables + serialized inputs).
-# Target step: compile harness.cpp + accellib.cpp per test for riscv64-unknown-elf
-# (newlib, HTIF), linking NO protobuf.
+# Target step: compile the SELF-CONTAINED harness (selfcontained.cpp) per test
+# for riscv64-unknown-elf (newlib, HTIF). It links NEITHER protobuf NOR accellib:
+#   - libstdc++/std::string hangs under newlib-nano (htif_nano.specs), so the
+#     target must not pull libstdc++;
+#   - even accellib.cpp's compiled functions hang on this target while the
+#     identical operations inlined into one TU run fine, so the harness inlines
+#     all accelerator interaction itself.
 #
 # Run a result on a chipyard sim, e.g.:
 #   make -C ../../../../sims/verilator CONFIG=ProtoAccelRocketConfig \
 #        run-binary BINARY=$(pwd)/double.riscv
+# and grep the output for "PASSED <test> round-trip".
 
 MICRO        := $(abspath ..)
 PB_INSTALL   := $(MICRO)/protobuf-x86-install
@@ -37,9 +43,13 @@ gen_data: gen_data.cpp $(PB_GEN)/primitives.pb.cc
 $(DATA_HEADERS): gen_data
 	./gen_data
 
-# bare-metal test = harness + accellib, with the per-test data header
-%.riscv: harness.cpp $(MICRO)/accellib.cpp %_data.h htif_bigheap.ld
-	$(RISCV_CXX) $(RISCV_FLAGS) -DDATA_HEADER='"$*_data.h"' harness.cpp $(MICRO)/accellib.cpp -o $@
+# nested messages: the serializer RTL doesn't implement sub-message fields, so
+# this test is deserialize-only (parse must complete).
+nested.riscv: EXTRA := -DPARSE_ONLY
+
+# bare-metal test = self-contained harness only (no accellib, no protobuf)
+%.riscv: selfcontained.cpp %_data.h htif_bigheap.ld
+	$(RISCV_CXX) $(RISCV_FLAGS) $(EXTRA) -DDATA_HEADER='"$*_data.h"' selfcontained.cpp -o $@
 
 clean:
 	rm -f gen_data $(RISCV_BINS) $(DATA_HEADERS)
