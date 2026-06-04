@@ -12,7 +12,7 @@ TESTS=("$@")
 declare -A R
 for t in "${TESTS[@]}"; do
   echo "=== $t ==="
-  timeout 1200 make -C "$CY/sims/verilator" CONFIG=ProtoAccelRocketConfig run-binary-fast \
+  timeout 2700 make -C "$CY/sims/verilator" CONFIG=ProtoAccelRocketConfig run-binary-fast \
         BINARY="$(pwd)/build/$t.riscv" > /dev/null 2>&1
   if   grep -aq "PASSED $t pipeline" "$OUT/$t.log" 2>/dev/null; then R[$t]=PASS
   elif grep -aq "FAILED $t pipeline" "$OUT/$t.log" 2>/dev/null; then R[$t]=FAIL

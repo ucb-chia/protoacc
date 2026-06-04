@@ -162,6 +162,8 @@ static string emit_object(const Message& m, const uint64_t* descr) {
             memset(blobs[self].bytes.data() + off, 0, 8);
             if (!n || !repptr) continue;
             if (ctype == T_STRING || ctype == T_BYTES) {
+                // string-repeated convention: count u64 at off, Rep* at off+8.
+                *(uint64_t*)(blobs[self].bytes.data() + off) = (uint64_t)n;
                 vector<uint64_t> rep(1 + n, 0);
                 rep[0] = (uint64_t)n; // allocated_size
                 string rn = add_blob("rep", rep.data(), rep.size() * 8);

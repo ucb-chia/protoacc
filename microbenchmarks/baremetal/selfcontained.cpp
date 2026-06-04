@@ -28,7 +28,9 @@ static void htif_exit(int code) {
 #define F_DO_SER 2
 #define F_SER_MEM_SETUP 3
 #define F_SER_CHECK 4
+#ifndef ITERS
 #define ITERS 10
+#endif
 #define RSZ ((size_t)(64 << 10))
 #define PG 4096
 
