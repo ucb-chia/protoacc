@@ -29,7 +29,7 @@ static void htif_exit(int code) {
 #define F_SER_MEM_SETUP 3
 #define F_SER_CHECK 4
 #ifndef ITERS
-#define ITERS 10
+#define ITERS 1
 #endif
 #define RSZ ((size_t)(64 << 10))
 #define PG 4096
@@ -141,42 +141,37 @@ int main() {
     printf("[1] setup done\n");
 
     // ---- stage 1: serialize GOLDEN_OBJ, compare to golden bytes ----
-    for (int it = 0; it < ITERS; it++) {
+    int serfail = 0;
+    for (int it = 0; it < ITERS && !serfail; it++) {
         uint64_t c0 = rdcycle();
         ROCC_INSTRUCTION_SS(P3, d[2], d[3], F_HASBITS_INFO);
         ROCC_INSTRUCTION_SS(P3, (uint64_t)d, (uint64_t)GOLDEN_OBJ, F_DO_SER);
         { uint64_t rv; ROCC_INSTRUCTION_D(P3, rv, F_SER_CHECK); asm volatile("fence"); }
         while (ptrs[it] == 0) { asm volatile("fence"); }
-        printf("serialize iter %d: %lu cycles\n", it, (unsigned long)(rdcycle() - c0));
+        uint64_t cycles = rdcycle() - c0;
+        volatile char* outp = ptrs[it];
+        size_t outlen = (size_t)(ptrs[it - 1] - ptrs[it]);
+        if (outlen != SERIALIZED_GOLDEN_LEN) serfail = 1;
+        for (size_t i = 0; !serfail && i < outlen; i++)
+            if ((unsigned char)outp[i] != serialized_golden[i]) serfail = 1;
+        if (serfail) printf("s%d, %lu: FAILED\n", it, (unsigned long)cycles);
     }
-    volatile char* outp = ptrs[0];
-    size_t outlen = (size_t)(ptrs[-1] - ptrs[0]);
-    printf("[2] serialize done: outlen=%lu golden=%lu\n",
-           (unsigned long)outlen, (unsigned long)SERIALIZED_GOLDEN_LEN);
-
-    int serfail = (outlen != SERIALIZED_GOLDEN_LEN);
-    for (size_t i = 0; !serfail && i < outlen; i++)
-        if ((unsigned char)outp[i] != serialized_golden[i]) {
-            printf("ser mismatch at %lu: %02x != %02x\n",
-                   (unsigned long)i, outp[i], serialized_golden[i]);
-            serfail = 1;
-        }
-    printf("%s: serialize %s\n", TEST_NAME, serfail ? "FAILED" : "PASSED");
 
     // ---- stage 2: deserialize golden bytes, compare to GOLDEN_OBJ ----
     void* obj = memalign(PG, PG); memset(obj, 0, PG);
     uint64_t minf_len = ((d[3] >> 32) << 32) | ((uint64_t)SERIALIZED_GOLDEN_LEN & 0xFFFFFFFFULL);
-    for (int it = 0; it < ITERS; it++) {
+    int desfail = 0;
+    for (int it = 0; it < ITERS && !desfail; it++) {
+        memset(obj, 0, PG);
         uint64_t c0 = rdcycle();
         ROCC_INSTRUCTION_SS(P2, (uint64_t)d, (uint64_t)obj, F_PARSE_INFO);
         ROCC_INSTRUCTION_SS(P2, (uint64_t)serialized_golden, minf_len, F_DO_PARSE);
         { uint64_t rv; ROCC_INSTRUCTION_D(P2, rv, F_CHECK); asm volatile("fence"); }
-        printf("deserialize iter %d: %lu cycles\n", it, (unsigned long)(rdcycle() - c0));
+        uint64_t cycles = rdcycle() - c0;
+        desfail = cmp_msgs(d, (const uint8_t*)obj, (const uint8_t*)GOLDEN_OBJ);
+        if (desfail) printf("d%d, %lu: FAILED\n", it, (unsigned long)cycles);
     }
-    printf("[3] deserialize done\n");
 
-    int desfail = cmp_msgs(d, (const uint8_t*)obj, (const uint8_t*)GOLDEN_OBJ);
-    printf("%s: deserialize %s\n", TEST_NAME, desfail ? "FAILED" : "PASSED");
 
     int fail = serfail || desfail;
     printf(fail ? "FAILED %s pipeline\n" : "PASSED %s pipeline\n", TEST_NAME);
