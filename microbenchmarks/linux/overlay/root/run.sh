@@ -1,10 +1,10 @@
 #!/bin/bash
-# Boot-time command for the protoacc-bmark FireMarshal workload.
-# Runs each smoke benchmark (accelerator vs protobuf CPU baseline) and powers off.
-echo "===== protoacc microbenchmarks (linux) ====="
-for t in double uint64_size05B string PaccdoubleMessage; do
-  echo "----- $t -----"
-  /root/$t.riscv
+# Full Figure-11 protoacc microbenchmarks: run every binary, then power off.
+echo "===== protoacc full microbenchmarks (linux) ====="
+cd /root/bin
+for t in *.riscv; do
+  echo "----- ${t%.riscv} -----"
+  ./$t
 done
 echo "===== protoacc microbenchmarks done ====="
 poweroff -f

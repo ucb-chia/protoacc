@@ -20,8 +20,12 @@ class ProtoAccelMegaBoomConfig extends Config(
   new protoacc.WithProtoAccel ++                                  // protoacc deserializer + serializer
   new chipyard.config.WithExtMemIdBits(7) ++
   new chipyard.config.WithSystemBusWidth(128) ++
-  new freechips.rocketchip.subsystem.WithNBanks(8) ++
+  // NOTE: WithInclusiveCache must come BEFORE (left of) WithNBanks: it divides
+  // capacity per-bank via up(SubsystemBankedCoherenceKey), which only sees
+  // fragments to its right. The reverse order yields capacityKB *per bank*
+  // (8 x 2MB = 16MB of BRAM, ~2x the VU47P).
   new freechips.rocketchip.subsystem.WithInclusiveCache(nWays=16, capacityKB=2048) ++
+  new freechips.rocketchip.subsystem.WithNBanks(8) ++
   new freechips.rocketchip.subsystem.WithNMemoryChannels(4) ++
   new boom.v3.common.WithNMegaBooms(1) ++
   new chipyard.config.AbstractConfig)
@@ -31,8 +35,12 @@ class ProtoAccelSerMegaBoomConfig extends Config(
   new protoacc.WithProtoAccelSerOnly ++
   new chipyard.config.WithExtMemIdBits(7) ++
   new chipyard.config.WithSystemBusWidth(128) ++
-  new freechips.rocketchip.subsystem.WithNBanks(8) ++
+  // NOTE: WithInclusiveCache must come BEFORE (left of) WithNBanks: it divides
+  // capacity per-bank via up(SubsystemBankedCoherenceKey), which only sees
+  // fragments to its right. The reverse order yields capacityKB *per bank*
+  // (8 x 2MB = 16MB of BRAM, ~2x the VU47P).
   new freechips.rocketchip.subsystem.WithInclusiveCache(nWays=16, capacityKB=2048) ++
+  new freechips.rocketchip.subsystem.WithNBanks(8) ++
   new freechips.rocketchip.subsystem.WithNMemoryChannels(4) ++
   new boom.v3.common.WithNMegaBooms(1) ++
   new chipyard.config.AbstractConfig)
@@ -41,8 +49,12 @@ class ProtoAccelDeserMegaBoomConfig extends Config(
   new protoacc.WithProtoAccelDeserOnly ++
   new chipyard.config.WithExtMemIdBits(7) ++
   new chipyard.config.WithSystemBusWidth(128) ++
-  new freechips.rocketchip.subsystem.WithNBanks(8) ++
+  // NOTE: WithInclusiveCache must come BEFORE (left of) WithNBanks: it divides
+  // capacity per-bank via up(SubsystemBankedCoherenceKey), which only sees
+  // fragments to its right. The reverse order yields capacityKB *per bank*
+  // (8 x 2MB = 16MB of BRAM, ~2x the VU47P).
   new freechips.rocketchip.subsystem.WithInclusiveCache(nWays=16, capacityKB=2048) ++
+  new freechips.rocketchip.subsystem.WithNBanks(8) ++
   new freechips.rocketchip.subsystem.WithNMemoryChannels(4) ++
   new boom.v3.common.WithNMegaBooms(1) ++
   new chipyard.config.AbstractConfig)
