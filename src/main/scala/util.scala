@@ -1,6 +1,7 @@
 package protoacc
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import chisel3.{Printable}
 import freechips.rocketchip.tile._
 import org.chipsalliance.cde.config._
@@ -22,7 +23,7 @@ object ProtoaccLogger {
       printf(midas.targetutils.SynthesizePrintf(format, args:_*))
     } else {
       printf("cy: %d, ", loginfo_cycles)
-      printf(Printable.pack(format, args:_*))
+      printf(format, args:_*)
     }
   }
 

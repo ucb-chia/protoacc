@@ -1,6 +1,7 @@
 package protoacc
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import chisel3.{Printable}
 import freechips.rocketchip.tile._
 import org.chipsalliance.cde.config._
@@ -44,7 +45,7 @@ class ProtoAccelSerializer(opcodes: OpcodeSet)(implicit p: Parameters) extends L
 class ProtoAccelSerializerImp(outer: ProtoAccelSerializer)(implicit p: Parameters) extends LazyRoCCModuleImp(outer)
 with MemoryOpConstants {
 
-  io.interrupt := Bool(false)
+  io.interrupt := false.B
 
   val cmd_router = Module(new CommandRouterSerializer)
   cmd_router.io.rocc_in <> io.cmd
@@ -142,5 +143,5 @@ with MemoryOpConstants {
 
   cmd_router.io.no_writes_inflight := !(ser_memwriter.io.mem_work_outstanding)
   cmd_router.io.completed_toplevel_bufs := ser_memwriter.io.messages_completed
-  io.busy := Bool(false)
+  io.busy := false.B
 }

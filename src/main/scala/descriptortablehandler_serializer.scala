@@ -1,6 +1,7 @@
 package protoacc
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import chisel3.{Printable}
 import freechips.rocketchip.tile._
 import org.chipsalliance.cde.config._
@@ -62,7 +63,7 @@ class SerDescriptorTableHandler()(implicit p: Parameters) extends Module
   with MemoryOpConstants {
 
   val io = IO(new Bundle {
-    val serializer_cmd_in = Decoupled(new SerializerInfoBundle).flip
+    val serializer_cmd_in = Flipped(Decoupled(new SerializerInfoBundle))
     val ser_field_handler_output = Decoupled(new DescrToHandlerBundle)
 
     val l2helperUser1 = new L1MemHelperBundle
@@ -75,6 +76,10 @@ class SerDescriptorTableHandler()(implicit p: Parameters) extends Module
   io.l2helperUser2.req.valid := false.B
   io.l2helperUser2.resp.ready := false.B
   io.l2helperUser2.req.bits.cmd := M_XRD
+
+  io.l2helperUser1.req.bits.addr := 0.U
+  io.l2helperUser1.req.bits.data := 0.U
+  io.l2helperUser2.req.bits.data := 0.U
 
   val depth = RegInit(0.U(ProtoaccParams.MAX_NESTED_LEVELS_WIDTH.W))
   assert(depth < ProtoaccParams.MAX_NESTED_LEVELS.U, "FAIL. TOO MANY NESTED LEVELS")
@@ -168,7 +173,7 @@ class SerDescriptorTableHandler()(implicit p: Parameters) extends Module
       when (hasbits_request_meta_Q.io.enq.ready && busy_toplevel && io.l2helperUser1.req.ready) {
         hasBitsLoaderState := s_hasBitsLoader_HasBitsLoad
         ProtoaccLogger.logInfo("[serdescriptor] dispatch is_submessage load, relfieldno %d, arrayindex %d, reqaddr 0x%x\n",
-          Wire(current_has_bits_next_bitoffset),
+          current_has_bits_next_bitoffset,
           hasbits_array_index,
           is_submessage_request_address)
       }
@@ -180,7 +185,7 @@ class SerDescriptorTableHandler()(implicit p: Parameters) extends Module
       when (io.l2helperUser1.req.ready) {
         hasBitsLoaderState := s_hasBitsLoader_WaitToAdvance
         ProtoaccLogger.logInfo("[serdescriptor] dispatch hasbits load, relfieldno %d, arrayindex %d, reqaddr 0x%x\n",
-          Wire(current_has_bits_next_bitoffset),
+          current_has_bits_next_bitoffset,
           hasbits_array_index,
           hasbits_request_address)
       }
@@ -260,10 +265,10 @@ class SerDescriptorTableHandler()(implicit p: Parameters) extends Module
   switch (hasBitsCONSUMERState) {
     is (s_hasBitsCONSUMER_AcceptIsSubmessage) {
       io.l2helperUser1.resp.ready := (hasBitsLoaderState === s_hasBitsLoader_WaitToAdvance) && hasbits_request_meta_Q.io.deq.valid
-      when (io.l2helperUser1.resp.fire()) {
+      when (io.l2helperUser1.resp.fire) {
         val internal_max_index = hasbits_request_meta_Q.io.deq.bits.has_bits_max_bitoffset % 32.U
         val truncate_shamt = 31.U - internal_max_index
-        val is_submessage_value_resp_partial = Wire(UInt(width=32.W))
+        val is_submessage_value_resp_partial = Wire(UInt(32.W))
         is_submessage_value_resp_partial := (io.l2helperUser1.resp.bits.data << truncate_shamt)(31, 0)
         val is_submessage_value_resp = (is_submessage_value_resp_partial >> truncate_shamt) | 0.U(32.W)
         ProtoaccLogger.logInfo("[serdescriptor] to release frontend to advance, considering bits (max:%d, min:%d), shamt was: %d, observed bitfield: 0x%x\n",

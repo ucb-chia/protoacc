@@ -1,6 +1,7 @@
 package protoacc
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import chisel3.{Printable}
 import freechips.rocketchip.tile._
 import org.chipsalliance.cde.config._
@@ -19,7 +20,7 @@ class FixedWriterRequest extends Bundle {
 class FixedWriter()(implicit p: Parameters) extends Module
   with MemoryOpConstants {
   val io = IO(new Bundle {
-    val fixed_writer_request = Decoupled(new FixedWriterRequest).flip
+    val fixed_writer_request = Flipped(Decoupled(new FixedWriterRequest))
 
     val l1helperUser = new L1MemHelperBundle
     val no_writes_inflight = Output(Bool())
@@ -40,6 +41,6 @@ class FixedWriter()(implicit p: Parameters) extends Module
   l1reqQueue.io.enq.valid := io.fixed_writer_request.valid
   io.fixed_writer_request.ready := l1reqQueue.io.enq.ready
 
-  io.l1helperUser.resp.ready := Bool(true)
+  io.l1helperUser.resp.ready := true.B
 }
 

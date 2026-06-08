@@ -1,0 +1,5 @@
+*.riscv
+*.o
+gen_data
+*_data.h
+overlay/root/*.riscv

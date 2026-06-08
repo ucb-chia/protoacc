@@ -1,6 +1,7 @@
 package protoacc
 
-import Chisel._
+import chisel3._
+import chisel3.util._
 import chisel3.{Printable}
 import freechips.rocketchip.tile._
 import org.chipsalliance.cde.config._
@@ -34,7 +35,7 @@ class ProtoAccel(opcodes: OpcodeSet)(implicit p: Parameters) extends LazyRoCC(
 class ProtoAccelImp(outer: ProtoAccel)(implicit p: Parameters) extends LazyRoCCModuleImp(outer)
 with MemoryOpConstants {
 
-  io.interrupt := Bool(false)
+  io.interrupt := false.B
 
   val cmd_router = Module(new CommandRouter)
   cmd_router.io.rocc_in <> io.cmd
@@ -86,7 +87,7 @@ with MemoryOpConstants {
 
   cmd_router.io.no_writes_inflight := fixed_writer.io.no_writes_inflight && outer.mem_hasbits.module.io.userif.no_memops_inflight
 
-  io.busy := Bool(false)
+  io.busy := false.B
 }
 
 class WithProtoAccel extends Config ((site, here, up) => {

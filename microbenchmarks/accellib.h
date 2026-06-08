@@ -1,5 +1,10 @@
 #include "rocc.h"
-#include <string>
+#include <stdint.h>
+#include <stddef.h>
+// NOTE: deliberately no <string> here. The parse helper takes a raw pointer +
+// length (not std::string) so bare-metal builds link only newlib and avoid
+// libstdc++, which hangs under newlib-nano (htif_nano.specs). The macro below
+// still accepts a std::string on Linux via .c_str()/.length().
 
 #define PROTOACC_OPCODE 2
 #define FUNCT_SFENCE 0
@@ -20,10 +25,10 @@ volatile char ** AccelSetupSerializer();
 
 #define AccelParseFromString(filename, msgtype, dest, inputstr) \
     AccelParseFromString_Helper(filename##_FriendStruct_##msgtype##_ACCEL_DESCRIPTORS::msgtype##_ACCEL_DESCRIPTORS, \
-        dest, inputstr);
+        dest, (inputstr).c_str(), (inputstr).length());
 
 void AccelParseFromString_Helper(const void * descriptor_table_ptr, void * dest_base_addr,
-                          const std::string& inputstr);
+                          const void * base_ptr, uint64_t input_length);
 
 #define AccelSerializeToString(filename, msgtype, src) \
     AccelSerializeToString_Helper(filename##_FriendStruct_##msgtype##_ACCEL_DESCRIPTORS::msgtype##_ACCEL_DESCRIPTORS, \

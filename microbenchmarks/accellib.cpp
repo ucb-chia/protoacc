@@ -1,5 +1,6 @@
 #include "accellib.h"
 #include <cassert>
+#include <cstdio>
 #include <malloc.h>
 
 #define PAGESIZE_BYTES 4096
@@ -25,8 +26,8 @@ void AccelSetupFixedAllocRegion() {
     assert((fixed_ptr_as_int & 0x7) == 0x0);
     assert((array_ptr_as_int & 0x7) == 0x0);
 
-    printf("accelerator given %lld byte region, starting at 0x%016llx for fixed alloc\n", (uint64_t)regionsize, fixed_ptr_as_int);
-    printf("accelerator given %lld byte region, starting at 0x%016llx for array alloc\n", (uint64_t)regionsize, array_ptr_as_int);
+    printf("accelerator given %ld byte region, starting at 0x%016lx for fixed alloc\n", (uint64_t)regionsize, fixed_ptr_as_int);
+    printf("accelerator given %ld byte region, starting at 0x%016lx for array alloc\n", (uint64_t)regionsize, array_ptr_as_int);
 
 }
 
@@ -63,8 +64,8 @@ volatile char ** AccelSetupFixedAllocRegionSerializer() {
     assert((stringalloc_region_ptr_as_int_tail & 0x7) == 0x0);
     assert((string_ptr_region_ptr_as_int & 0x7) == 0x0);
 
-    printf("accelerator given %lld byte region, tail at 0x%016llx for string alloc\n", (uint64_t)regionsize, stringalloc_region_ptr_as_int_tail);
-    printf("accelerator given %lld byte region, starting at 0x%016llx for string ptr alloc\n", (uint64_t)string_ptr_region_size, string_ptr_region_ptr_as_int);
+    printf("accelerator given %ld byte region, tail at 0x%016lx for string alloc\n", (uint64_t)regionsize, stringalloc_region_ptr_as_int_tail);
+    printf("accelerator given %ld byte region, starting at 0x%016lx for string ptr alloc\n", (uint64_t)string_ptr_region_size, string_ptr_region_ptr_as_int);
 
     return (volatile char**)stringptr_region;
 }
@@ -90,9 +91,7 @@ size_t GetSerializedLength(volatile char ** ptrs, int index) {
 }
 
 void AccelParseFromString_Helper(const void * descriptor_table_ptr, void * dest_base_addr,
-                          const std::string& inputstr) {
-    const void * base_ptr = inputstr.c_str();
-    uint64_t input_length = inputstr.length();
+                          const void * base_ptr, uint64_t input_length) {
     if (input_length == 0) {
         return;
     }
